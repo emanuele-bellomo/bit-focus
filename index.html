@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pomodoro Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --surface2: #22222f;
+      --border: #2e2e42;
+      --accent-work: #6c63ff;
+      --accent-rest: #3ecfb2;
+      --accent-eye: #f5a623;
+      --text: #e8e8f0;
+      --muted: #888898;
+      --radius: 14px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* ── Main card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 36px;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Phase badge ── */
+    .phase-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-work);
+      transition: color 0.4s;
+    }
+    .phase-badge .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+    body.phase-rest  .phase-badge { color: var(--accent-rest); }
+    body.phase-eye   .phase-badge { color: var(--accent-eye); }
+
+    /* ── Ring ── */
+    .ring-wrap {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+    }
+    .ring-wrap svg {
+      transform: rotate(-90deg);
+    }
+    .ring-bg {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 10;
+    }
+    .ring-fg {
+      fill: none;
+      stroke: var(--accent-work);
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.8s linear, stroke 0.4s;
+    }
+    body.phase-rest .ring-fg { stroke: var(--accent-rest); }
+    body.phase-eye  .ring-fg { stroke: var(--accent-eye); }
+
+    .ring-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .ring-time {
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .ring-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:active { transform: scale(0.96); }
+
+    .btn-primary {
+      background: var(--accent-work);
+      color: #fff;
+      padding: 12px 32px;
+      flex: 1;
+    }
+    body.phase-rest .btn-primary { background: var(--accent-rest); }
+    body.phase-eye  .btn-primary { background: var(--accent-eye); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 12px 18px;
+    }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Settings panel ── */
+    .settings {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .settings h2 {
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .setting-row label {
+      font-size: 0.9rem;
+    }
+    .setting-row input[type="number"] {
+      width: 72px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    .setting-row input[type="number"]:focus {
+      outline: 2px solid var(--accent-work);
+    }
+
+    /* Toggle switch */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 99px;
+      transition: background 0.3s;
+    }
+    .toggle input:checked + .toggle-track { background: var(--accent-work); }
+    .toggle-thumb {
+      position: absolute;
+      width: 16px; height: 16px;
+      top: 3px; left: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle input:checked ~ .toggle-thumb { transform: translateX(18px); }
+
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+    }
+    .preset-btn:hover { color: var(--text); border-color: var(--accent-work); }
+
+    /* ── 20-20-20 overlay ── */
+    #eye-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(6px);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+    }
+    #eye-overlay.show { display: flex; }
+    #eye-overlay .overlay-icon { font-size: 4rem; }
+    #eye-overlay h2 { font-size: 1.6rem; font-weight: 700; color: var(--accent-eye); }
+    #eye-overlay p  { color: var(--muted); font-size: 1rem; text-align: center; max-width: 300px; }
+    #eye-overlay .eye-countdown {
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--accent-eye);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Session counter */
+    .sessions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .session-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+    .session-dot.done { background: var(--accent-work); }
+  </style>
+</head>
+<body>
+
+<!-- 20-20-20 overlay -->
+<div id="eye-overlay" role="dialog" aria-modal="true" aria-label="Eye rest time">
+  <div class="overlay-icon">👁️</div>
+  <h2>Eye Rest — 20 seconds</h2>
+  <p>Look at something 20 feet away to relax your eyes.</p>
+  <div class="eye-countdown" id="eye-countdown">20</div>
+</div>
+
+<h1>🍅 Pomodoro</h1>
+
+<!-- Main timer card -->
+<div class="card">
+  <div class="phase-badge" id="phase-badge">
+    <span class="dot"></span>
+    <span id="phase-label">Work</span>
+  </div>
+
+  <div class="ring-wrap">
+    <svg width="200" height="200" viewBox="0 0 200 200">
+      <circle class="ring-bg" cx="100" cy="100" r="88" />
+      <circle class="ring-fg" id="ring-fg" cx="100" cy="100" r="88"
+        stroke-dasharray="552.92"
+        stroke-dashoffset="0" />
+    </svg>
+    <div class="ring-text">
+      <div class="ring-time" id="main-time">45:00</div>
+      <div class="ring-label" id="ring-sublabel">Focus time</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-primary" id="btn-start">Start</button>
+    <button class="btn-secondary" id="btn-reset">↺</button>
+    <button class="btn-secondary" id="btn-skip" title="Skip to next phase">⏭</button>
+  </div>
+
+  <div style="display:flex; justify-content:center;">
+    <div class="sessions" id="sessions-wrap">
+      <!-- dots injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="settings">
+  <h2>⚙ Settings</h2>
+
+  <div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;">Presets</div>
+    <div class="preset-row">
+      <button class="preset-btn" data-work="25" data-rest="5">25 / 5</button>
+      <button class="preset-btn" data-work="45" data-rest="15">45 / 15</button>
+      <button class="preset-btn" data-work="52" data-rest="17">52 / 17</button>
+      <button class="preset-btn" data-work="90" data-rest="30">90 / 30</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <label for="inp-work">Work (minutes)</label>
+    <input type="number" id="inp-work" min="1" max="180" value="45" />
+  </div>
+
+  <div class="setting-row">
+    <label for="inp-rest">Rest (minutes)</label>
+    <input type="number" id="inp-rest" min="1" max="60" value="15" />
+  </div>
+
+  <div class="setting-row">
+    <label for="inp-sessions">Sessions per cycle</label>
+    <input type="number" id="inp-sessions" min="1" max="12" value="4" />
+  </div>
+
+  <div class="setting-row">
+    <span>20-20-20 eye rule</span>
+    <label class="toggle" title="Pause every 20 minutes for 20 seconds during work">
+      <input type="checkbox" id="toggle-eye" />
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Audio helpers
+// ─────────────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+/**
+ * Play a short beep tone.
+ * @param {number} freq      - Frequency in Hz
+ * @param {number} duration  - Duration in seconds
+ * @param {'sine'|'square'|'triangle'} type
+ * @param {number} gain      - Volume 0–1
+ * @param {number} [delay=0] - Start delay in seconds
+ */
+function beep(freq, duration, type = 'sine', gain = 0.4, delay = 0) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const env = ctx.createGain();
+  osc.connect(env);
+  env.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.value = freq;
+  const t = ctx.currentTime + delay;
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(gain, t + 0.01);
+  env.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.start(t);
+  osc.stop(t + duration + 0.05);
+}
+
+/** Three rising tones → signals phase transition (work↔rest) */
+function playTransitionSound() {
+  beep(440, 0.18, 'sine', 0.45, 0.00);
+  beep(550, 0.18, 'sine', 0.45, 0.20);
+  beep(660, 0.28, 'sine', 0.45, 0.40);
+}
+
+/** Gentle double chime → signals eye-rest */
+function playEyeSound() {
+  beep(880, 0.15, 'triangle', 0.3, 0.00);
+  beep(880, 0.15, 'triangle', 0.3, 0.22);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM refs
+// ─────────────────────────────────────────────────────────────────────────────
+const ringFg         = document.getElementById('ring-fg');
+const mainTime       = document.getElementById('main-time');
+const ringSubLabel   = document.getElementById('ring-sublabel');
+const phaseLabel     = document.getElementById('phase-label');
+const btnStart       = document.getElementById('btn-start');
+const btnReset       = document.getElementById('btn-reset');
+const btnSkip        = document.getElementById('btn-skip');
+const sessionsWrap   = document.getElementById('sessions-wrap');
+const eyeOverlay     = document.getElementById('eye-overlay');
+const eyeCountdown   = document.getElementById('eye-countdown');
+const inpWork        = document.getElementById('inp-work');
+const inpRest        = document.getElementById('inp-rest');
+const inpSessions    = document.getElementById('inp-sessions');
+const toggleEye      = document.getElementById('toggle-eye');
+
+const CIRCUMFERENCE = 2 * Math.PI * 88; // ≈ 552.92
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+const PHASE = { WORK: 'work', REST: 'rest', EYE: 'eye' };
+
+let state = {
+  phase: PHASE.WORK,          // current phase
+  running: false,
+  totalSeconds: 45 * 60,      // seconds in current phase
+  elapsed: 0,                 // seconds elapsed in current phase
+  session: 0,                 // completed work sessions
+  maxSessions: 4,
+  workMins: 45,
+  restMins: 15,
+  eyeEnabled: false,
+  eyeElapsed: 0,              // seconds since last eye break (in work phase only)
+  eyeCountdown: 20,           // seconds of eye rest remaining
+  prevPhase: null,            // phase before eye break (always WORK)
+};
+
+let tickInterval = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function setRing(ratio) {
+  // ratio 1 = full, 0 = empty
+  const offset = CIRCUMFERENCE * (1 - ratio);
+  ringFg.style.strokeDashoffset = offset;
+}
+
+function applyPhaseClass() {
+  document.body.classList.remove('phase-rest', 'phase-eye');
+  if (state.phase === PHASE.REST) document.body.classList.add('phase-rest');
+  if (state.phase === PHASE.EYE)  document.body.classList.add('phase-eye');
+}
+
+function updateUI() {
+  const remaining = state.totalSeconds - state.elapsed;
+  mainTime.textContent = fmt(remaining);
+
+  const ratio = state.totalSeconds > 0 ? (state.totalSeconds - state.elapsed) / state.totalSeconds : 0;
+  setRing(Math.max(0, ratio));
+
+  if (state.phase === PHASE.WORK) {
+    phaseLabel.textContent = 'Work';
+    ringSubLabel.textContent = 'Focus time';
+  } else if (state.phase === PHASE.REST) {
+    phaseLabel.textContent = 'Rest';
+    ringSubLabel.textContent = 'Take a break';
+  } else {
+    phaseLabel.textContent = 'Eye Rest';
+    ringSubLabel.textContent = '20-20-20';
+  }
+
+  applyPhaseClass();
+  updateSessionDots();
+
+  // Eye overlay
+  if (state.phase === PHASE.EYE) {
+    eyeCountdown.textContent = state.eyeCountdown;
+    eyeOverlay.classList.add('show');
+  } else {
+    eyeOverlay.classList.remove('show');
+  }
+
+  btnStart.textContent = state.running ? 'Pause' : 'Start';
+}
+
+function updateSessionDots() {
+  sessionsWrap.innerHTML = '';
+  for (let i = 0; i < state.maxSessions; i++) {
+    const d = document.createElement('div');
+    d.className = 'session-dot' + (i < state.session ? ' done' : '');
+    sessionsWrap.appendChild(d);
+  }
+  const lbl = document.createElement('span');
+  lbl.style.marginLeft = '6px';
+  lbl.textContent = `${state.session}/${state.maxSessions}`;
+  sessionsWrap.appendChild(lbl);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase transitions
+// ─────────────────────────────────────────────────────────────────────────────
+function enterWork() {
+  state.phase = PHASE.WORK;
+  state.totalSeconds = state.workMins * 60;
+  state.elapsed = 0;
+  state.eyeElapsed = 0;
+  ringSubLabel.textContent = 'Focus time';
+}
+
+function enterRest() {
+  state.phase = PHASE.REST;
+  state.session += 1;
+  if (state.session > state.maxSessions) state.session = state.maxSessions;
+  state.totalSeconds = state.restMins * 60;
+  state.elapsed = 0;
+  state.eyeElapsed = 0;
+}
+
+function enterEyeBreak() {
+  state.prevPhase = state.phase;
+  state.phase = PHASE.EYE;
+  state.eyeCountdown = 20;
+}
+
+function finishEyeBreak() {
+  state.phase = PHASE.WORK; // always returns to work
+  state.eyeElapsed = 0;
+  // do NOT reset elapsed/totalSeconds — work timer continues where it left off
+}
+
+function handleWorkTick() {
+  state.elapsed++;
+  state.eyeElapsed++;
+
+  // 20-20-20: every 20 minutes of work
+  if (state.eyeEnabled && state.eyeElapsed >= 20 * 60) {
+    playEyeSound();
+    enterEyeBreak();
+    return;
+  }
+
+  // Work phase complete
+  if (state.elapsed >= state.totalSeconds) {
+    playTransitionSound();
+    enterRest();
+  }
+}
+
+function handleRestTick() {
+  state.elapsed++;
+  if (state.elapsed >= state.totalSeconds) {
+    playTransitionSound();
+    // Full cycle done?
+    if (state.session >= state.maxSessions) {
+      state.session = 0;
+    }
+    enterWork();
+  }
+}
+
+function handleEyeTick() {
+  state.eyeCountdown--;
+  eyeCountdown.textContent = state.eyeCountdown;
+  if (state.eyeCountdown <= 0) {
+    playEyeSound();
+    finishEyeBreak();
+  }
+}
+
+function tick() {
+  if (!state.running) return;
+
+  if (state.phase === PHASE.EYE) {
+    handleEyeTick();
+  } else if (state.phase === PHASE.WORK) {
+    handleWorkTick();
+  } else {
+    handleRestTick();
+  }
+
+  updateUI();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Controls
+// ─────────────────────────────────────────────────────────────────────────────
+function startTimer() {
+  getAudioCtx(); // ensure context created on user gesture
+  state.running = true;
+  btnStart.textContent = 'Pause';
+  if (!tickInterval) {
+    tickInterval = setInterval(tick, 1000);
+  }
+}
+
+function pauseTimer() {
+  state.running = false;
+  btnStart.textContent = 'Start';
+}
+
+function resetTimer() {
+  pauseTimer();
+  state.phase = PHASE.WORK;
+  state.elapsed = 0;
+  state.eyeElapsed = 0;
+  state.session = 0;
+  state.totalSeconds = state.workMins * 60;
+  updateUI();
+}
+
+function skipPhase() {
+  if (state.phase === PHASE.WORK || state.phase === PHASE.EYE) {
+    playTransitionSound();
+    enterRest();
+  } else {
+    playTransitionSound();
+    if (state.session >= state.maxSessions) state.session = 0;
+    enterWork();
+  }
+  updateUI();
+}
+
+btnStart.addEventListener('click', () => {
+  if (state.running) pauseTimer(); else startTimer();
+  updateUI();
+});
+
+btnReset.addEventListener('click', () => {
+  resetTimer();
+});
+
+btnSkip.addEventListener('click', () => {
+  skipPhase();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings
+// ─────────────────────────────────────────────────────────────────────────────
+function applySettings() {
+  const w = parseInt(inpWork.value, 10);
+  const r = parseInt(inpRest.value, 10);
+  const s = parseInt(inpSessions.value, 10);
+  if (!w || !r || !s) return;
+  state.workMins    = w;
+  state.restMins    = r;
+  state.maxSessions = s;
+  state.eyeEnabled  = toggleEye.checked;
+  resetTimer();
+}
+
+inpWork.addEventListener('change', applySettings);
+inpRest.addEventListener('change', applySettings);
+inpSessions.addEventListener('change', applySettings);
+toggleEye.addEventListener('change', () => {
+  state.eyeEnabled = toggleEye.checked;
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    inpWork.value = btn.dataset.work;
+    inpRest.value = btn.dataset.rest;
+    applySettings();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+resetTimer();
+</script>
+</body>
+</html>
